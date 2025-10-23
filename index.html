@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Interactive Japan Map - Color Editor</title>
+<title>Japan color map</title>
 <style>
   body {
     font-family: sans-serif;
@@ -13,7 +13,6 @@
     overflow: hidden;
   }
 
-  /* 🔹 Left control panel */
   .sidebar {
     width: 250px;
     background: #f0f0f0;
@@ -24,6 +23,7 @@
     flex-direction: column;
     justify-content: flex-start;
     align-items: stretch;
+    overflow-y: auto;
   }
 
   h1 {
@@ -69,7 +69,7 @@
     margin-bottom: 20px;
   }
 
-  #reset-btn {
+  #reset-btn, #reset-one-btn {
     background: #ff5555;
     color: white;
     border: none;
@@ -78,9 +78,10 @@
     cursor: pointer;
     font-weight: bold;
     transition: background 0.3s;
+    margin-bottom: 10px;
   }
 
-  #reset-btn:hover {
+  #reset-btn:hover, #reset-one-btn:hover {
     background: #ff2222;
   }
 
@@ -91,7 +92,6 @@
     font-weight: bold;
   }
 
-  /* 🔸 Map area */
   .map-container {
     flex-grow: 1;
     display: flex;
@@ -120,13 +120,43 @@
   .prefecture:hover {
     stroke: #000;
   }
+
+  #uncolored-section {
+    margin-top: 15px;
+  }
+
+  #toggle-uncolored {
+    background: #6666ff;
+    color: white;
+    border: none;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
+  }
+
+  #toggle-uncolored:hover {
+    background: #4444dd;
+  }
+
+  #uncolored-list {
+    margin-top: 10px;
+    display: none;
+    font-size: 0.9em;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 8px;
+    background: white;
+  }
 </style>
 </head>
-<body>
 
+<body>
   <!-- 🔹 Left panel -->
   <div class="sidebar">
-    <h1>Japan Map Color Editor</h1>
+    <h1>King of Japan!</h1>
     <p class="instructions">1️⃣ Click a color → 2️⃣ Click a prefecture → 3️⃣ Color it!</p>
 
     <!-- 🎨 Color buttons -->
@@ -149,15 +179,23 @@
       <span id="count-orange">Orange: 0</span>
     </div>
 
-    <!-- 🔁 Reset button -->
+    <!-- 🔁 Reset buttons -->
     <button id="reset-btn">Reset All</button>
+    <button id="reset-one-btn">Reset One Prefecture</button>
 
     <!-- 🏷️ Prefecture info -->
     <div id="selected-pref">No prefecture selected yet.</div>
+
+    <!-- 📋 Uncolored list -->
+    <div id="uncolored-section">
+      <button id="toggle-uncolored">Show Uncolored Prefectures</button>
+      <div id="uncolored-list"></div>
+    </div>
   </div>
 
-<div class="map-container">
-<svg class="geolonia-svg-map" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
+  <!-- 🔸 Map area -->
+  <div class="map-container">
+    <svg class="geolonia-svg-map" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
   <title>Japanese Prefectures</title>
   <desc>Created by Geolonia (https://geolonia.com/).</desc>
   <g class="svg-map" transform="matrix(1.028807, 0, 0, 1.028807, -47.544239, -28.806583)">
@@ -379,76 +417,130 @@
     </g>
   </g>
 </svg>
-<script>
-  const colorBtns = document.querySelectorAll('.color-btn');
-  const prefectures = document.querySelectorAll('.prefecture');
-  const info = document.getElementById('selected-pref');
-  const resetBtn = document.getElementById('reset-btn');
-  const counts = {
-    red: 0, blue: 0, green: 0, yellow: 0, purple: 0, orange: 0
-  };
+  </div>
 
-  let activeColor = null;
+  <script>
+    const colorBtns = document.querySelectorAll('.color-btn');
+    const prefectures = document.querySelectorAll('.prefecture');
+    const info = document.getElementById('selected-pref');
+    const resetBtn = document.getElementById('reset-btn');
+    const resetOneBtn = document.getElementById('reset-one-btn');
+    const counts = { red: 0, blue: 0, green: 0, yellow: 0, purple: 0, orange: 0 };
+    let activeColor = null;
+    let resetMode = false; // 🔹 New flag for single reset mode
 
-  // 🔹 Update count display
-  function updateCounts() {
-    for (let color in counts) {
-      document.getElementById(`count-${color}`).textContent =
-        `${color.charAt(0).toUpperCase() + color.slice(1)}: ${counts[color]}`;
+    function updateCounts() {
+      for (let color in counts) {
+        document.getElementById(`count-${color}`).textContent =
+          `${color.charAt(0).toUpperCase() + color.slice(1)}: ${counts[color]}`;
+      }
+      updateUncoloredList();
     }
-  }
 
-  // 🎨 Click color button
-  colorBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      colorBtns.forEach(b => b.classList.remove('active'));
-      if (activeColor === btn.dataset.color) {
-        activeColor = null;
-      } else {
-        btn.classList.add('active');
-        activeColor = btn.dataset.color;
-      }
+    // 🎨 Click color button
+    colorBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        colorBtns.forEach(b => b.classList.remove('active'));
+        if (activeColor === btn.dataset.color) {
+          activeColor = null;
+        } else {
+          activeColor = btn.dataset.color;
+          resetMode = false;
+          btn.classList.add('active');
+        }
+      });
     });
-  });
 
-  // 🗾 Click prefecture
-  prefectures.forEach(pref => {
-    pref.addEventListener('click', () => {
-      const name = pref.querySelector('title').textContent;
-      info.textContent = `Selected: ${name}`;
-
-      if (!activeColor) return;
-
-      const currentColor = pref.dataset.color || null;
-      if (currentColor && counts[currentColor] > 0) {
-        counts[currentColor]--;
-      }
-
-      pref.style.fill = activeColor;
-      pref.dataset.color = activeColor;
-      counts[activeColor]++;
-
-      updateCounts();
-
-      colorBtns.forEach(b => b.classList.remove('active'));
-      activeColor = null;
-    });
-  });
-
-  // 🔁 Reset button
-  resetBtn.addEventListener('click', () => {
+    // 🗾 Click prefecture
     prefectures.forEach(pref => {
-      pref.style.fill = '#e0e0e0';
-      delete pref.dataset.color;
-    });
-    for (let color in counts) counts[color] = 0;
-    updateCounts();
-    info.textContent = 'All colors cleared.';
-    activeColor = null;
-    colorBtns.forEach(b => b.classList.remove('active'));
-  });
+      pref.addEventListener('click', () => {
+        const name = pref.querySelector('title').textContent;
+        info.textContent = `Selected: ${name}`;
 
-  updateCounts();
-</script>
+        // 🔸 Reset one prefecture mode
+        if (resetMode) {
+          const currentColor = pref.dataset.color;
+          if (currentColor && counts[currentColor] > 0) {
+            counts[currentColor]--;
+          }
+          pref.style.fill = '#e0e0e0';
+          delete pref.dataset.color;
+          updateCounts();
+          info.textContent = `Reset: ${name}`;
+          resetMode = false;
+          resetOneBtn.classList.remove('active');
+          return;
+        }
+
+        // Normal color change
+        if (!activeColor) return;
+        const currentColor = pref.dataset.color || null;
+        if (currentColor && counts[currentColor] > 0) {
+          counts[currentColor]--;
+        }
+        pref.style.fill = activeColor;
+        pref.dataset.color = activeColor;
+        counts[activeColor]++;
+        updateCounts();
+        colorBtns.forEach(b => b.classList.remove('active'));
+        activeColor = null;
+      });
+    });
+
+    // 🔁 Reset All
+    resetBtn.addEventListener('click', () => {
+      prefectures.forEach(pref => {
+        pref.style.fill = '#e0e0e0';
+        delete pref.dataset.color;
+      });
+      for (let color in counts) counts[color] = 0;
+      updateCounts();
+      info.textContent = 'All colors cleared.';
+      activeColor = null;
+      resetMode = false;
+      colorBtns.forEach(b => b.classList.remove('active'));
+      resetOneBtn.classList.remove('active');
+    });
+
+    // 🔹 New: Reset One Mode toggle
+    resetOneBtn.addEventListener('click', () => {
+      resetMode = !resetMode;
+      resetOneBtn.classList.toggle('active', resetMode);
+      activeColor = null;
+      colorBtns.forEach(b => b.classList.remove('active'));
+      info.textContent = resetMode
+        ? 'Click a prefecture to reset its color.'
+        : 'Reset One mode off.';
+    });
+
+    // 🔹 New: Uncolored prefectures list
+    const toggleUncolored = document.getElementById('toggle-uncolored');
+    const uncoloredList = document.getElementById('uncolored-list');
+
+    toggleUncolored.addEventListener('click', () => {
+      if (uncoloredList.style.display === 'none' || uncoloredList.style.display === '') {
+        uncoloredList.style.display = 'block';
+        toggleUncolored.textContent = 'Hide Uncolored Prefectures';
+      } else {
+        uncoloredList.style.display = 'none';
+        toggleUncolored.textContent = 'Show Uncolored Prefectures';
+      }
+    });
+
+    function updateUncoloredList() {
+      const uncolored = [];
+      prefectures.forEach(pref => {
+        if (!pref.dataset.color) {
+          const title = pref.querySelector('title').textContent;
+          uncolored.push(title);
+        }
+      });
+      uncoloredList.innerHTML = uncolored.length
+        ? uncolored.map(name => `<div>${name}</div>`).join('')
+        : '<div>All prefectures are colored!</div>';
+    }
+
+    updateCounts();
+  </script>
 </body>
 </html>
